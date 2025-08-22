@@ -11,7 +11,24 @@ export interface PostData {
   title: string
   date?: string
   content: string
+  description?: string
+  weight?: number
+  extra?: {
+    link_to?: string
+    [key: string]: unknown
+  }
   [key: string]: unknown
+}
+
+export interface ProjectData extends PostData {
+  title: string
+  description?: string
+  date?: string
+  weight?: number
+  extra?: {
+    link_to?: string
+    [key: string]: unknown
+  }
 }
 
 export async function getPostData(section: string, slug: string): Promise<PostData> {
@@ -58,4 +75,8 @@ export function getAllPosts(section: string): PostData[] {
     }
     return 0
   })
+}
+
+export function getAllProjects(): ProjectData[] {
+  return getAllPosts('projects') as ProjectData[]
 }
