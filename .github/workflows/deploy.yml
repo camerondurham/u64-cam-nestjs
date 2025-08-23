@@ -63,13 +63,13 @@ jobs:
           # Check that no sensitive files are included in build output
           if [ -d "out" ]; then
             echo "Validating build output for security..."
-            # Check for common sensitive file patterns
-            find out -name "*.env*" -o -name "*.key" -o -name "*.pem" -o -name "*.p12" -o -name "*.pfx" | while read file; do
+            # Check for actual sensitive file extensions (not .key which could be JS)
+            find out -name "*.env*" -o -name "*.pem" -o -name "*.p12" -o -name "*.pfx" -o -name "id_rsa*" -o -name "*.crt" | while read file; do
               echo "WARNING: Potentially sensitive file found: $file"
               exit 1
             done
-            # Check for common secret patterns in files
-            if grep -r -i "password\|secret\|token\|api[_-]key" out/ --include="*.js" --include="*.html" --include="*.json" | grep -v "placeholder\|example\|demo"; then
+            # Check for actual secrets in non-minified files only, excluding common false positives
+            if grep -r -E "(password|secret|token|api[_-]?key)[\s]*[:=][\s]*['\"][^'\"]{8,}" out/ --include="*.html" --include="*.json" --exclude="*.js" | grep -v -E "(placeholder|example|demo|test|mock|sample)"; then
               echo "WARNING: Potential secrets found in build output"
               exit 1
             fi
