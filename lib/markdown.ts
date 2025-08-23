@@ -3,6 +3,7 @@ import path from 'path'
 import matter from 'gray-matter'
 import { remark } from 'remark'
 import html from 'remark-html'
+import toml from 'toml'
 
 const contentDirectory = path.join(process.cwd(), 'content')
 
@@ -33,11 +34,23 @@ export interface ProjectData extends PostData {
 
 export async function getPostData(section: string, slug: string): Promise<PostData> {
   const fullPath = path.join(contentDirectory, section, `${slug}.md`)
-  
+
   try {
     const fileContents = fs.readFileSync(fullPath, 'utf8')
-    const matterResult = matter(fileContents)
-    
+    // Detect frontmatter type and parse accordingly
+    let matterResult
+    if (fileContents.startsWith('+++')) {
+      matterResult = matter(fileContents, {
+        engines: {
+          toml: toml.parse.bind(toml)
+        },
+        delimiters: '+++',
+        language: 'toml'
+      })
+    } else {
+      matterResult = matter(fileContents)
+    }
+
     let processedContent = ''
     try {
       const result = await remark()
@@ -49,10 +62,10 @@ export async function getPostData(section: string, slug: string): Promise<PostDa
       // Fallback to raw content if markdown processing fails
       processedContent = matterResult.content || ''
     }
-    
+
     // Ensure we have at least a title, use filename as fallback
     const title = matterResult.data.title || slug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-    
+
     // Validate and sanitize date field
     let validatedDate = matterResult.data.date
     if (validatedDate && typeof validatedDate === 'string') {
@@ -65,28 +78,28 @@ export async function getPostData(section: string, slug: string): Promise<PostDa
       console.warn(`Date field in ${slug}.md is not a string, ignoring`)
       validatedDate = undefined
     }
-    
+
     // Ensure description is a string if present
     let description = matterResult.data.description
     if (description && typeof description !== 'string') {
       console.warn(`Description field in ${slug}.md is not a string, converting to string`)
       description = String(description)
     }
-    
+
     // Validate weight field
     let weight = matterResult.data.weight
     if (weight !== undefined && (typeof weight !== 'number' || isNaN(weight))) {
       console.warn(`Invalid weight in ${slug}.md: ${weight}, defaulting to 0`)
       weight = 0
     }
-    
+
     // Validate extra field structure
     let extra = matterResult.data.extra
     if (extra && typeof extra !== 'object') {
       console.warn(`Extra field in ${slug}.md is not an object, ignoring`)
       extra = undefined
     }
-    
+
     return {
       slug,
       title,
@@ -114,25 +127,37 @@ export async function getPostData(section: string, slug: string): Promise<PostDa
 
 export function getAllPosts(section: string): PostData[] {
   const sectionPath = path.join(contentDirectory, section)
-  
+
   if (!fs.existsSync(sectionPath)) {
     return []
   }
-  
+
   const fileNames = fs.readdirSync(sectionPath)
   const allPostsData = fileNames
     .filter(fileName => fileName.endsWith('.md') && !fileName.startsWith('_'))
     .map(fileName => {
       const slug = fileName.replace(/\.md$/, '')
       const fullPath = path.join(sectionPath, fileName)
-      
+
       try {
         const fileContents = fs.readFileSync(fullPath, 'utf8')
-        const matterResult = matter(fileContents)
-        
+        // Detect frontmatter type and parse accordingly
+        let matterResult
+        if (fileContents.startsWith('+++')) {
+          matterResult = matter(fileContents, {
+            engines: {
+              toml: toml.parse.bind(toml)
+            },
+            delimiters: '+++',
+            language: 'toml'
+          })
+        } else {
+          matterResult = matter(fileContents)
+        }
+
         // Ensure we have at least a title, use filename as fallback
         const title = matterResult.data.title || slug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-        
+
         // Validate and sanitize date field
         let validatedDate = matterResult.data.date
         if (validatedDate && typeof validatedDate === 'string') {
@@ -146,28 +171,28 @@ export function getAllPosts(section: string): PostData[] {
           console.warn(`Date field in ${fileName} is not a string, ignoring`)
           validatedDate = undefined
         }
-        
+
         // Ensure description is a string if present
         let description = matterResult.data.description
         if (description && typeof description !== 'string') {
           console.warn(`Description field in ${fileName} is not a string, converting to string`)
           description = String(description)
         }
-        
+
         // Validate weight field
         let weight = matterResult.data.weight
         if (weight !== undefined && (typeof weight !== 'number' || isNaN(weight))) {
           console.warn(`Invalid weight in ${fileName}: ${weight}, defaulting to 0`)
           weight = 0
         }
-        
+
         // Validate extra field structure
         let extra = matterResult.data.extra
         if (extra && typeof extra !== 'object') {
           console.warn(`Extra field in ${fileName} is not an object, ignoring`)
           extra = undefined
         }
-        
+
         return {
           slug,
           title,
@@ -190,7 +215,7 @@ export function getAllPosts(section: string): PostData[] {
         } as PostData
       }
     })
-  
+
   return allPostsData.sort((a, b) => {
     // Enhanced sorting with fallback handling
     if (a.date && b.date) {
@@ -199,12 +224,12 @@ export function getAllPosts(section: string): PostData[] {
     // If one has date and other doesn't, prioritize the one with date
     if (a.date && !b.date) return -1
     if (!a.date && b.date) return 1
-    
+
     // If both have weight, sort by weight
     if (a.weight !== undefined && b.weight !== undefined) {
       return a.weight - b.weight
     }
-    
+
     // Fallback to alphabetical by title
     return a.title.localeCompare(b.title)
   })
